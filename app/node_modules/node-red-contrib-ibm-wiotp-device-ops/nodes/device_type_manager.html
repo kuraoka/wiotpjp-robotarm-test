@@ -1,0 +1,460 @@
+<!--
+Copyright 2014, 2015, 2016 IBM Corp.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<script type="text/x-red" data-template-name="device-type-manager">
+    <style>
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 18px;
+    }
+
+    .switch input {display:none;}
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      -webkit-transition: .4s;
+      transition: .4s;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 15px;
+      width: 15px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      -webkit-transition: .4s;
+      transition: .4s;
+    }
+
+    input:checked + .slider {
+      background-color: #ad1625;
+    }
+
+    input:focus + .slider {
+      box-shadow: 0 0 1px #2196F3;
+    }
+
+    input:checked + .slider:before {
+      -webkit-transform: translateX(11px);
+      -ms-transform: translateX(11px);
+      transform: translateX(11px);
+    }
+
+    /* Rounded sliders */
+    .slider.round {
+      border-radius: 34px;
+    }
+
+    .slider.round:before {
+      border-radius: 50%;
+    }
+    </style>
+    <div class="form-row">
+        <label for="node-input-auth" style="width:180px;"><i class="fa fa-unlock"></i>Authentication</label>
+        <select type="text" id="node-input-auth"  style="width:220px;">
+            <option value="bluemix">Bluemix Service</option>
+            <option value="api" >API Key</option>
+        </select>
+    </div>
+
+    <div class="form-row" id = "node-input-apiKey-div">
+        <label for="node-input-apiKey" id="node-input-apiKeyLabel" style="width:180px;"><i class="fa fa-key"></i> API Key</label>
+        <input type="text" id="node-input-apiKey" placeholder="API Key" style="width:220px;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-method" style="width:180px;"><i class="fa fa-cogs"></i> Operation</label>
+        <select type="text" id="node-input-method" style="width:220;">
+            <option value="GetAll">List Device Types</option>
+            <option value="Create" >Create Device Type</option>
+            <option value="Delete">Delete Device Type</option>
+            <option value="Get">Get Device Type with supplied Device Type Id</option>
+            <option value="Update">Update Device Type with supplied Device Type Id</option>
+            <!-- <option value="Get all gw">List devices connected via gateway</option> -->
+        </select>
+    </div>
+
+
+    <div class="form-row" id="node-form-row-deviceType">
+        <label for="node-input-deviceType" style="width:180px;"><i class="fa fa-plug"></i> Device Type</label>
+        <select type="text" list="exampleList" id="node-input-deviceType" style="width:220px;" >
+            <option value=""></option>
+        </select>
+
+        <!-- <a class="editor-button" id="node-input-deviceType-link" href="#" target="_new"><i class="fa fa-external-link" /></a> -->
+    </div>
+
+
+    <div class="form-row" id="dev-id-cont">
+        <label for="node-input-deviceTypeId" style="width:180px;"><i class="fa fa-plug"></i> Device Type</label>
+        <input type="text" id="node-input-deviceTypeId" placeholder="e.g acmepump01" style="width:220px;"  >
+    </div>
+
+    <div class="form-row" id="node-form-row-classId">
+        <label for="node-input-classId" style="width:180px;"><i class="fa fa-cogs"></i> ClassId</label>
+        <select type="text" id="node-input-classId" style="width:220;">
+            <option value="Device">Device</option>
+            <option value="Gateway" >Gateway</option>
+        </select>
+    </div>
+    <div class="form-row" id="dt-ignore-cont">
+        <label for="node-input-ignore" style="width:260px;"><i class="fa fa-info"></i> Ignore Exception if Device Type Exists</label>
+        <label class="switch" style="top: 10px;width: 30px;left:110px"><input type="checkbox" id="node-input-ignore" checked="checked"><div class="slider round"></div></label>
+    </div>
+    <div id="dev-type-optional">
+
+      <div class="form-row node-input-option-container-row" style="margin-bottom: 0px;width: 100%">
+          <label for="node-input-width" style="vertical-align:top;display:inline"><i class="fa fa-list-alt"></i> Optional properties:</label> <br/>
+          <div id="node-input-option-container-div" style="box-sizing: border-box; border-radius: 5px; height: 257px; padding: 5px; border: 1px solid #ccc; overflow-y:scroll;display: inline-block; width:100%;">
+              <ol id="node-input-option-container" style=" list-style-type:none; margin: 0;"></ol>
+          </div>
+      </div>
+      <div class="form-row">
+          <a href="#" class="editor-button editor-button-small" id="node-input-add-option" style="margin-top: 4px;"><i class="fa fa-plus"></i> <span>Property</span></a>
+      </div>
+
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name" style="width:180px;"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name" style="width:220px;">
+    </div>
+
+
+</script>
+
+
+<script type="text/javascript">
+    RED.nodes.registerType('device-type-manager',{
+        category: 'Watson IoT',
+        color: '#3ACFB6',
+        defaults: {
+            auth : { value : "bluemix" },
+            name : { value : "" },
+            apiKey : {
+                type : "wiotp",
+                required: false,
+                validate: function(v) {
+                    var auth = $("#node-input-auth").val() || this.auth;
+                    return auth === 'bluemix' || (v != '' && v!='_ADD_');
+                }
+            },
+            deviceType : { value : "" },
+            classId : { value : "Device"},
+            method : { value:  "GetAll"},
+            deviceTypeId : { value : "" },
+            serialNumber : { value : ""},
+            manufacturer : { value : ""},
+            model : { value : ""},
+            deviceClass : { value : ""},
+            infoDescription : { value : ""},
+            firmwareVersion : { value : ""},
+            hardwareVersion : { value : ""},
+            descriptiveLocation : { value : ""},
+            metadata : { value : ""},
+            password : { value : "" },
+            properties: {value:[]},
+            ignore : {value : false}
+        },
+        inputs:1,
+        outputs:1,
+        icon: "device-type.png",
+        label: function() {
+            return this.name || this.deviceTypeId || "Device Type Manager";
+        },
+        oneditprepare: function() {
+
+            var selectedDt = this.deviceType;
+            var node = this;
+            function updateContent() {
+              /*
+              $.getJSON('devicetype/orgid',function(data) {
+                  $("#node-input-deviceType-link").attr('href','https://'+data+'.internetofthings.ibmcloud.com/dashboard/#/devices/deviceTypes');
+              });
+              */
+              $.getJSON('watsoniot/devicemanager/gettypes',function(data) {
+                  //get the list of device types
+
+                  var deviceTypeSelect = $('#node-input-deviceType');
+                  deviceTypeSelect.html('<option value=""></option>');
+                  if(data) {
+
+                      var items = data.results;
+                      $.each(items, function (i, item) {
+                          deviceTypeSelect.append($('<option>', {
+                              value: item.id,
+                              text : item.id
+                          }));
+                      });
+                  }
+
+                  if(selectedDt) {
+                      deviceTypeSelect.val(selectedDt);
+                  }
+              });
+
+            }
+
+            $("#node-input-apiKey").on('change', function(){
+                var authValue = $('#node-input-auth').val();
+                var credsKey = $("#node-input-apiKey").val();
+                if(authValue === 'api' && credsKey && credsKey !== "_ADD_") {
+                    var wiotpConfig = RED.nodes.node(credsKey);
+                    $.post('watsoniot/devicemanager/newapikey', {
+                        "id" : wiotpConfig.id,
+                        "credentials" : wiotpConfig.credentials
+                    } , function(data) {
+                        updateContent();
+                    });
+                }
+            });
+
+            $("#node-input-method").on('change', function(){
+                if(this.value === "GetAll"){
+                    $("#dev-id-cont").hide();
+                    $("#node-form-row-deviceType").hide();
+                    $("#node-form-row-classId").hide();
+                    $("#dev-type-optional").hide();
+                    $("#dt-ignore-cont").hide();
+                } else if(this.value === "Create"){
+                    $("#dev-id-cont").show();
+                    $("#node-form-row-deviceType").hide();
+                    $("#node-form-row-classId").show();
+                    $("#dev-type-optional").show();
+                    $("#dt-ignore-cont").show();
+                } else if(this.value === "Update"){
+                    $("#dev-id-cont").hide();
+                    $("#node-form-row-deviceType").show();
+                    $("#node-form-row-classId").hide();
+                    $("#dev-type-optional").show();
+                    $("#dt-ignore-cont").hide();
+                }else {
+                    $("#dev-id-cont").hide();
+                    $("#node-form-row-deviceType").show();
+                    $("#node-form-row-classId").hide();
+                    $("#dev-type-optional").hide();
+                    $("#dt-ignore-cont").hide();
+                }
+
+            });
+
+            $("#node-input-auth").on('change', function(){
+                if(this.value === "bluemix"){
+                    $("#node-input-apiKey-div").hide();
+                    $.get('watsoniot/devicemanager/getbluemixtypes',function(data) {
+                      // update the content of devicetype and orgId
+                      updateContent();
+                    });
+                }else {
+                    $("#node-input-apiKey-div").show();
+                    var credsKey = $("#node-input-apiKey").val();
+
+                    if(credsKey && credsKey !== "_ADD_") {
+                        var wiotpConfig = RED.nodes.node(credsKey);
+                        $.post('watsoniot/devicemanager/newapikey', {
+                            "id" : wiotpConfig.id,
+                            "credentials" : wiotpConfig.credentials
+                        } , function(data) {
+                            updateContent();
+                        });
+                    }
+                }
+
+            });
+
+            function disableSelectedOption(){
+              var keys =[];
+              for (var i = 0; i < node.properties.length; i++) {
+                keys.push(node.properties[i].key)
+              }
+              var selects = $("#node-input-option-container select");
+              selects.each(function(){
+                var optionList =$(this).children();
+                  optionList.each(function(){
+                    var key = $(this).attr('value');
+                    if(keys.indexOf(key) != -1)
+                      $(this).attr('disabled','disabled')
+                    else {
+                      $(this).removeAttr('disabled')
+                    }
+                  })
+              })
+
+            }
+
+            function generateProperties(i, option) {
+              var container = $('<li/>',{style:"background: #fff; margin:0; padding:8px 0px 0px; border-bottom: 1px solid #ccc;"});
+              var row = $('<div/>').appendTo(container);
+              var row2 = $('<div/>',{style:"padding-top: 5px; padding-left: 175px;"}).appendTo(container);
+              var row3 = $('<div/>',{style:"padding-top: 5px; padding-left: 120px;"}).appendTo(container);
+
+              $('<i style="color: #eee; cursor: move; margin-left: 3px;" class="node-input-option-handle fa fa-bars"></i>').appendTo(row);
+
+              var select = $('<select/>',{style:"margin-left: 7px; width: 170px;",value:option.key}).appendTo(row)
+              var arr = [
+                {val : "", text: '--Select--'},
+                {val : "serialNumber", text: 'Serial Number'},
+                {val : "manufacturer", text: 'Manufacturer'},
+                {val : "model", text: 'Model'},
+                {val : "deviceClass", text: 'Device Class'},
+                {val : "infoDescription", text: 'Description'},
+                {val : "firmwareVersion", text: 'Firmware Version'},
+                {val : "hardwareVersion", text: 'HardwareVersion'},
+                {val : "descriptiveLocation", text: 'Descriptive Location'},
+                {val : "metadata", text: 'Metadata'}
+              ];
+              $(arr).each(function() {
+                  select.append($("<option>").attr('value',this.val).text(this.text));
+              });
+              //After rendering check disable selected options
+              setTimeout(disableSelectedOption,100);
+              select.val(option.key)
+              select.change(function (evt) {
+                option.key = this.value;
+                //Update the selection change in all the options populated
+                disableSelectedOption();
+              });
+              var labelField = $('<input/>',{class:"node-input-option-value",type:"text",style:"margin-left: 7px; width: calc(90% - 200px);", placeholder: 'Value', value:option.value}).appendTo(row);
+              var finalspan = $('<span/>',{style:"float: right;margin-right: 10px;"}).appendTo(row);
+              var deleteButton = $('<a/>',{href:"#",class:"editor-button editor-button-small", style:"margin-top: 7px; margin-left: 5px;"}).appendTo(finalspan);
+              $('<i/>',{class:"fa fa-remove"}).appendTo(deleteButton);
+              deleteButton.click(function() {
+                  container.css({"background":"#fee"});
+                  container.fadeOut(300, function() {
+                      var index =node.properties.indexOf(option);
+                      if (index > -1) {
+                            node.properties.splice(index, 1);
+                      }
+                      $(this).remove();
+                      //Update the selection change in all the options populated
+                      disableSelectedOption();
+                  });
+              });
+
+              $("#node-input-option-container").append(container);
+          }
+
+          $("#node-input-add-option").click(function() {
+              var obj ={};
+              node.properties.push(obj)
+              generateProperties($("#node-input-option-container").children().length+1, obj);
+              $("#node-input-option-container-div").scrollTop($("#node-input-option-container-div").get(0).scrollHeight);
+          });
+
+          for (var i=0;i<this.properties.length;i++) {
+              var option = this.properties[i];
+              generateProperties(i+1,option);
+          }
+
+          $( "#node-input-option-container" ).sortable({
+              axis: "y",
+              handle:".node-input-option-handle",
+              cursor: "move"
+          });
+        },
+        oneditsave: function() {
+          var properties = $("#node-input-option-container").children();
+          var node = this;
+          node.properties = [];
+          properties.each(function(i) {
+              var option = $(this);
+              var obj={}
+              obj.key = option.find("select option:selected").val();
+              obj.value = option.find(".node-input-option-value").val();
+              if(obj.key)
+              node.properties.push(obj);
+          });
+            var auth = $("#node-input-auth").val();
+            if (auth === 'bluemix') {
+                $("#node-input-apiKey").val('_ADD_');
+            }
+        }
+    });
+</script>
+
+
+
+<script type="text/x-red" data-help-name="device-type-manager">
+    <p>Device Type Manager node can perform actions on device types in the IBM Watson IoT Platform. For some fields, the value can be passed in the <code>msg</code>. Any fields set on the node explicitly take precedence.</p>
+    <p>
+    <dl>
+
+    <dt>Authentication</dt>
+    <dd>Authentication type. <br/>
+        <ol>
+        <li><i>Bluemix Service</i> - Use the Watson IoT service bound to this application</li>
+        <li><i>API Key</i> - Use a  Watson IoT Platform API key from your organization of</li>
+        </ol>
+    </dd>
+
+    <dt>Device Type</dt>
+    <dd>Available for delete, retrieve single device type or update operations, this specifies the Device type for the operation. May be specified by <code>msg.payload.deviceType</code>.</dd>
+
+    <dt>Class Id</dt>
+    <dd>Available for create operation. Either <b>Gateway</b> or <b>Device</b>.</dd>
+
+    <dt>Operation</dt>
+    <dd>Specifies the operation to be performed. For more information, read the <a target="_blank" href="https://console.ng.bluemix.net/docs/services/IoT/index.html">Watson IoT Platform documentation</a>. May be specified by <code>msg.operation.xxx</code>where <code>xxx</code> values supported are: <br/>
+      <ul>
+        <li>GetAll</li>
+        <li>Create</li>
+        <li>Delete</li>
+        <li>Get</li>
+        <li>Update</li>
+      </ul>
+      <br/>
+    </dd>
+
+    <dt>Serial Number (Optional property)</at>
+    <dd>Serial Number can form one aspect of a devices identifying attributes. Serial numbers are likely to be unique within a model number, but cannot be taken as a device identifier alone. May be specified by <code>msg.payload.serialNumber</code>.</dd>
+
+    <dt>Device Info Description (Optional property)</dt>
+    <dd>This will be copied to all devices of this type when they are added to the Watson IoT Platform. May be specified by <code>msg.payload.infoDescription</code>.</dd>
+
+    <dt>Manufacturer (Optional property)</dt>
+    <dd>The attribute lists the manufacturer of devices in this device type. May be specified by <code>msg.payload.manufacturer</code>.</dd>
+
+    <dt>Firmware Version (Optional property)</dt>
+    <dd>Current firmware version installed on the device. May be specified by <code>msg.payload.firmwareVersion</code>.</dd>
+
+    <dt>Model (Optional property)</dt>
+    <dd>This denote groups of devices that serve the same function or have the same characteristics, but may have different hardware versions. May be specified bypayload as <code>msg.payload.model</code>.</dd>
+
+    <dt>Hardware Version (Optional property)</dt>
+    <dd>May be specified by <code>msg.payload.hardwareVersion</code>.</dd>
+
+    <dt>Device Class (Optional property)</dt>
+    <dd>A class of devices is a grouping of devices sharing certain characteristics. A device class usually serves a descriptive function. May be specified by <code>msg.payload.deviceClass</code>.</dd>
+
+    <dt>Descriptive Location (Optional property)</dt>
+    <dd>The descriptive location of a device is a separate attribute of a device, and gives a descriptive location rather than a specific measured location. May be specified by <code>msg.payload.descriptiveLocation</code>.</dd>
+
+    <dt>Metadata (Optional property)</dt>
+    <dd>Metadata can be used to define custom attribute fields that are not provided by the Watson IoT Platform. May be specified by <code>msg.payload.metadata</code>.</dd>
+
+    <dt>Ignore Exception if Device Type Exists(only for Create Operation)</dt>
+    <dd>This option will ignore the exception that is thrown, when you try to register a new device type that is already registered in the Watson IoT platform. Also it can be specified by <code>msg.payload.ignore</code>.</dd>
+
+    </dl>
+    </p>
+</script>
